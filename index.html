@@ -9,38 +9,51 @@
     <title>BFDIA 5B</title>
     <style>
         * {
-            margin: 0;
-            padding: 0;
+            margin: 0; padding: 0;
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
         }
         html, body {
-            width: 100%;
-            height: 100%;
-            background: #000000;
+            width: 100%; height: 100%;
+            background: #000;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         #player-wrapper {
+            width: 100%; height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 100%;
-            height: 100%;
         }
-        ruffle-player {
-            display: block;
+        ruffle-player { display: block; }
+
+        #status {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            z-index: 999;
         }
     </style>
 </head>
 <body>
 
+    <div id="status">Loading Ruffle...</div>
     <div id="player-wrapper"></div>
 
     <script>
+        // ── Config ────────────────────────────────────────────────────────
         window.RufflePlayer = window.RufflePlayer || {};
         window.RufflePlayer.config = {
             base: "./",
@@ -52,40 +65,78 @@
             contextMenu: false,
             allowFullscreen: false
         };
-    </script>
 
-    <script src="ruffle.js" onload="initRuffle()" onerror="tryFallback()"></script>
+        var CDN_URL = "https://unpkg.com/@ruffle-rs/ruffle";
+        var triedCDN = false;
 
-    <script>
-        function tryFallback() {
+        function setStatus(msg) {
+            var el = document.getElementById("status");
+            if (el) el.innerHTML = msg;
+        }
+
+        // ── Launch the SWF ────────────────────────────────────────────────
+        function initRuffle() {
+            try {
+                var ruffle = window.RufflePlayer.newest();
+                if (!ruffle) throw new Error("RufflePlayer.newest() returned null");
+
+                var player = ruffle.createPlayer();
+                var wrapper = document.getElementById("player-wrapper");
+                wrapper.appendChild(player);
+
+                // Hide status overlay once player is injected
+                document.getElementById("status").style.display = "none";
+
+                player.load("5mobile.swf").catch(function(e) {
+                    setStatus("Failed to load 5mobile.swf.<br>" + e);
+                });
+
+            } catch(e) {
+                // Ruffle loaded but crashed — fall back to CDN
+                tryFromCDN("Ruffle init error: " + e);
+            }
+        }
+
+        // ── Fallback: load Ruffle straight from CDN ───────────────────────
+        function tryFromCDN(reason) {
+            if (triedCDN) {
+                setStatus("Ruffle failed to load from both local files and CDN.<br><br>" +
+                          "Please check your internet connection and restart the app.<br><br>" +
+                          "<small>" + reason + "</small>");
+                return;
+            }
+            triedCDN = true;
+            setStatus("Local Ruffle failed.<br>Fetching from official Ruffle CDN...<br><br>" +
+                      "<small>" + reason + "</small>");
+
+            // Override base so Ruffle finds its own wasm from CDN
+            window.RufflePlayer.config.base = CDN_URL + "/";
+
             var s = document.createElement("script");
-            s.src = "https://unpkg.com/@ruffle-rs/ruffle";
-            s.onload  = initRuffle;
+            s.src = CDN_URL;
+            s.onload = function() {
+                setStatus("CDN loaded. Launching...");
+                // Small delay to let Ruffle fully register
+                setTimeout(initRuffle, 500);
+            };
             s.onerror = function() {
-                document.body.innerHTML =
-                    "<p style='color:#fff;font-family:Arial;padding:30px;text-align:center'>" +
-                    "Could not load Ruffle.<br>Make sure ruffle.js is in the www folder.</p>";
+                setStatus("Ruffle CDN also failed.<br>" +
+                          "Please check your internet connection and restart the app.");
             };
             document.head.appendChild(s);
         }
 
-        function initRuffle() {
-            var ruffle = window.RufflePlayer.newest();
-            var player = ruffle.createPlayer();
-            document.getElementById("player-wrapper").appendChild(player);
-            player.load("5mobile.swf").catch(function(e) {
-                document.body.innerHTML =
-                    "<p style='color:#fff;font-family:Arial;padding:30px;text-align:center'>" +
-                    "Could not load 5mobile.swf.<br>" + e + "</p>";
-            });
-        }
-
-        window.addEventListener("load", function() {
-            if (window.RufflePlayer && window.RufflePlayer.newest &&
-                !document.querySelector("ruffle-player")) {
-                initRuffle();
-            }
-        });
+        // ── Load local Ruffle first ───────────────────────────────────────
+        var localScript = document.createElement("script");
+        localScript.src = "ruffle.js";
+        localScript.onload = function() {
+            setStatus("Local Ruffle loaded. Launching...");
+            setTimeout(initRuffle, 300);
+        };
+        localScript.onerror = function() {
+            tryFromCDN("ruffle.js not found locally");
+        };
+        document.head.appendChild(localScript);
     </script>
 
 </body>
