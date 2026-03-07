@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+    <title>BFDIA 5B</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: #000000;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #player-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+        ruffle-player {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="player-wrapper"></div>
+
+    <script>
+        window.RufflePlayer = window.RufflePlayer || {};
+        window.RufflePlayer.config = {
+            base: "./",
+            allowedNetworking: "all",
+            scale: "showAll",
+            letterbox: "on",
+            quality: "high",
+            wmode: "direct",
+            contextMenu: false,
+            allowFullscreen: false
+        };
+    </script>
+
+    <script src="ruffle.js" onload="initRuffle()" onerror="tryFallback()"></script>
+
+    <script>
+        function tryFallback() {
+            var s = document.createElement("script");
+            s.src = "https://unpkg.com/@ruffle-rs/ruffle";
+            s.onload  = initRuffle;
+            s.onerror = function() {
+                document.body.innerHTML =
+                    "<p style='color:#fff;font-family:Arial;padding:30px;text-align:center'>" +
+                    "Could not load Ruffle.<br>Make sure ruffle.js is in the www folder.</p>";
+            };
+            document.head.appendChild(s);
+        }
+
+        function initRuffle() {
+            var ruffle = window.RufflePlayer.newest();
+            var player = ruffle.createPlayer();
+            document.getElementById("player-wrapper").appendChild(player);
+            player.load("5mobile.swf").catch(function(e) {
+                document.body.innerHTML =
+                    "<p style='color:#fff;font-family:Arial;padding:30px;text-align:center'>" +
+                    "Could not load 5mobile.swf.<br>" + e + "</p>";
+            });
+        }
+
+        window.addEventListener("load", function() {
+            if (window.RufflePlayer && window.RufflePlayer.newest &&
+                !document.querySelector("ruffle-player")) {
+                initRuffle();
+            }
+        });
+    </script>
+
+</body>
+</html>
