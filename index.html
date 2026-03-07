@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <meta name="mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+    <title>BFDIA 5B</title>
+    <style>
+        * {
+            margin: 0; padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        html, body {
+            width: 100%; height: 100%;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #player-wrapper {
+            width: 100%; height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+        ruffle-player {
+            display: block;
+            /* Explicit size — 120% of viewport, capped by the screen */
+            width: 120vw;
+            height: 120vh;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+
+        #status {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="status">Loading Ruffle...</div>
+    <div id="player-wrapper"></div>
+
+    <script>
+        window.RufflePlayer = window.RufflePlayer || {};
+        window.RufflePlayer.config = {
+            base: "./",
+            allowedNetworking: "all",
+            scale: "showAll",
+            letterbox: "on",
+            quality: "high",
+            wmode: "direct",
+            contextMenu: false,
+            allowFullscreen: false
+        };
+
+        var CDN_URL = "https://unpkg.com/@ruffle-rs/ruffle";
+        var triedCDN = false;
+
+        function setStatus(msg) {
+            var el = document.getElementById("status");
+            if (el) el.innerHTML = msg;
+        }
+
+        function initRuffle() {
+            try {
+                var ruffle = window.RufflePlayer.newest();
+                if (!ruffle) throw new Error("RufflePlayer.newest() returned null");
+
+                var player = ruffle.createPlayer();
+                var wrapper = document.getElementById("player-wrapper");
+                wrapper.appendChild(player);
+
+                // Explicitly set player size to 120% of screen
+                // so the SWF scales up to fill it properly
+                var w = Math.min(window.innerWidth  * 1.2, window.innerWidth);
+                var h = Math.min(window.innerHeight * 1.2, window.innerHeight);
+
+                // Keep 960x540 aspect ratio (16:9)
+                var aspect = 960 / 540;
+                if (w / h > aspect) {
+                    w = h * aspect;
+                } else {
+                    h = w / aspect;
+                }
+
+                player.style.width  = w + "px";
+                player.style.height = h + "px";
+
+                document.getElementById("status").style.display = "none";
+
+                player.load("5mobile.swf").catch(function(e) {
+                    setStatus("Failed to load 5mobile.swf.<br>" + e);
+                });
+
+            } catch(e) {
+                tryFromCDN("Ruffle init error: " + e);
+            }
+        }
+
+        function tryFromCDN(reason) {
+            if (triedCDN) {
+                setStatus("Ruffle failed from both local and CDN.<br><br>" +
+                          "Check internet and restart.<br><br>" +
+                          "<small>" + reason + "</small>");
+                return;
+            }
+            triedCDN = true;
+            setStatus("Local Ruffle failed.<br>Fetching from CDN...<br><br>" +
+                      "<small>" + reason + "</small>");
+
+            window.RufflePlayer.config.base = CDN_URL + "/";
+
+            var s = document.createElement("script");
+            s.src = CDN_URL;
+            s.onload = function() {
+                setStatus("CDN loaded. Launching...");
+                setTimeout(initRuffle, 500);
+            };
+            s.onerror = function() {
+                setStatus("Ruffle CDN also failed.<br>Check internet and restart.");
+            };
+            document.head.appendChild(s);
+        }
+
+        var localScript = document.createElement("script");
+        localScript.src = "ruffle.js";
+        localScript.onload = function() {
+            setStatus("Launching...");
+            setTimeout(initRuffle, 300);
+        };
+        localScript.onerror = function() {
+            tryFromCDN("ruffle.js not found locally");
+        };
+        document.head.appendChild(localScript);
+    </script>
+
+</body>
+</html>
