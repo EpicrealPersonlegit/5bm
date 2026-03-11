@@ -66,6 +66,25 @@
             opacity: 1.0;
             background: rgba(255,255,255,0.35);
         }
+        #update-btn {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 180px;
+            height: 60px;
+            background: #ffffff;
+            color: #000000;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 9999;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -77,6 +96,10 @@
         </div>
     </div>
 
+    <!-- Update button shown during 10s startup delay -->
+    <div id="update-btn" onclick="doUpdate()">Update Game</div>
+
+    <!-- Dpad overlay -->
     <div id="dpad">
         <div class="btn" id="btn-up"    data-key="setUp">&#9650;</div>
         <div class="btn" id="btn-down"  data-key="setDown">&#9660;</div>
@@ -107,7 +130,7 @@
         var draggable  = false;
         var cdInterval = null;
 
-        // ── Default positions ─────────────────────────────────────────────
+        // ── Default button positions ──────────────────────────────────────
         var defaults = {
             "btn-up":    { x: 60,  y: 220 },
             "btn-down":  { x: 60,  y: 320 },
@@ -121,7 +144,7 @@
 
         var STORAGE_KEY = "bfdia5b_btn_positions";
 
-        // ── Save positions to localStorage ────────────────────────────────
+        // ── Save positions ────────────────────────────────────────────────
         function savePositions() {
             var data = {};
             var btns = document.querySelectorAll(".btn");
@@ -135,14 +158,13 @@
             try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
         }
 
-        // ── Load positions from localStorage ──────────────────────────────
+        // ── Load positions ────────────────────────────────────────────────
         function loadPositions() {
             var data = null;
             try {
                 var raw = localStorage.getItem(STORAGE_KEY);
                 if (raw) data = JSON.parse(raw);
             } catch(e) {}
-
             var btns = document.querySelectorAll(".btn");
             for (var i = 0; i < btns.length; i++) {
                 var b   = btns[i];
@@ -154,7 +176,7 @@
             }
         }
 
-        // ── Start 15s drag phase ──────────────────────────────────────────
+        // ── Drag phase ────────────────────────────────────────────────────
         function startDragPhase() {
             draggable = true;
             var remaining = 15;
@@ -168,7 +190,6 @@
             }, 1000);
         }
 
-        // ── End drag phase ────────────────────────────────────────────────
         function endDragPhase() {
             draggable = false;
             if (cdInterval) { clearInterval(cdInterval); cdInterval = null; }
@@ -179,7 +200,7 @@
             savePositions();
         }
 
-        // ── Call AS2 function via ExternalInterface ───────────────────────
+        // ── Call AS2 via ExternalInterface ────────────────────────────────
         function callAS(fn, val) {
             if (!player) return;
             try {
@@ -187,19 +208,30 @@
                     player.callExternalInterface(fn, val);
                     return;
                 }
-                if (player.ruffle && typeof player.ruffle().callExternalInterface === "function") {
-                    player.ruffle().callExternalInterface(fn, val);
-                    return;
-                }
             } catch(e) {
                 console.warn("callAS failed:", fn, val, e);
             }
         }
 
-        // ── Touch registry — tracks every finger independently ────────────
+        // ── Update button ─────────────────────────────────────────────────
+        function doUpdate() {
+            var btn = document.getElementById("update-btn");
+            btn.textContent = "Downloading...";
+            btn.style.background = "#aaaaaa";
+            btn.style.pointerEvents = "none";
+            try {
+                Android.triggerUpdate();
+            } catch(e) {
+                btn.textContent = "Failed!";
+                btn.style.background = "#ff6666";
+                console.warn("Android bridge not available:", e);
+            }
+        }
+
+        // ── Touch registry ────────────────────────────────────────────────
         var touchRegistry = {};
 
-        // ── Bind touch events to all buttons ─────────────────────────────
+        // ── Bind buttons ──────────────────────────────────────────────────
         function bindButtons() {
             var btns = document.querySelectorAll(".btn");
             for (var i = 0; i < btns.length; i++) {
@@ -220,7 +252,6 @@
                                 origTop:  parseInt(btn.style.top)  || 0,
                                 isDrag:   false
                             };
-                            // Always fire key immediately on touch
                             callAS(setter, true);
                         }
                     }, {passive: false});
@@ -234,11 +265,9 @@
                             var dx   = touch.clientX - reg.startX;
                             var dy   = touch.clientY - reg.startY;
                             var dist = Math.sqrt(dx * dx + dy * dy);
-                            // Only drag if in drag phase AND moved more than 10px
                             if (draggable && dist > 10) {
                                 if (!reg.isDrag) {
                                     reg.isDrag = true;
-                                    // Cancel the key press since this is a drag
                                     callAS(reg.setter, false);
                                 }
                                 var newLeft = reg.origLeft + dx;
@@ -281,7 +310,7 @@
             }
         }
 
-        // ── Init Ruffle and load game ─────────────────────────────────────
+        // ── Init Ruffle ───────────────────────────────────────────────────
         function initRuffle() {
             var ruffle  = window.RufflePlayer.newest();
             player      = ruffle.createPlayer();
@@ -298,15 +327,17 @@
 
             bindButtons();
 
-            // Show dpad 5 seconds after Ruffle loads
+            // Wait 10 seconds before starting Ruffle dpad and hiding update btn
             setTimeout(function() {
+                var updateBtn = document.getElementById("update-btn");
+                if (updateBtn) updateBtn.style.display = "none";
                 loadPositions();
                 document.getElementById("dpad").style.display = "block";
                 startDragPhase();
             }, 10000);
         }
 
-        // ── Fallback to CDN if local ruffle.js missing ────────────────────
+        // ── Load Ruffle — local first, CDN fallback ───────────────────────
         function tryFallback() {
             var s = document.createElement("script");
             s.src = "https://unpkg.com/@ruffle-rs/ruffle";
