@@ -343,12 +343,20 @@
             var status  = document.getElementById("status");
             if (status) wrapper.removeChild(status);
             wrapper.appendChild(player);
-            player.load("5mobile.swf").catch(function(e) {
-                wrapper.innerHTML =
-                    "<p style='color:#fff;padding:20px;text-align:center'>" +
-                    "Failed to load game.<br>" + e + "</p>";
-            });
-            bindButtons();
+          player.load("5mobile.swf").catch(function(e) {
+    wrapper.innerHTML =
+        "<p style='color:#fff;padding:20px;text-align:center'>" +
+        "Failed to load game.<br>" + e + "</p>";
+});
+bindButtons();
+
+// Show dpad automatically after game loads
+// Small delay to let Ruffle fully initialize
+setTimeout(function() {
+    loadPositions();
+    document.getElementById("dpad").style.display = "block";
+    startDragPhase();
+}, 3000);
         }
 
         function tryFallback() {
