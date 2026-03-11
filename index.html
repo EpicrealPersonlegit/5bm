@@ -31,8 +31,6 @@
             width: 100%;
             height: 100%;
         }
-
-        /* ── Dpad overlay ─────────────────────────────────────────────── */
         #dpad {
             display: none;
             position: fixed;
@@ -41,11 +39,6 @@
             pointer-events: none;
             z-index: 999;
         }
-
-        /* ── Countdown banner ─────────────────────────────────────────── */
-      
-
-        /* ── Individual button ────────────────────────────────────────── */
         .btn {
             position: absolute;
             pointer-events: all;
@@ -64,20 +57,12 @@
             font-size: 16px;
             opacity: 0.5;
             cursor: pointer;
-            /* smooth drag movement */
-            transition: background 0.1s;
         }
         .btn.drag-mode {
-            /* slightly brighter border during drag phase */
             border-color: rgba(255,220,0,0.8);
             background: rgba(255,220,0,0.12);
         }
-        .btn.drag-mode:active,
-        .btn.drag-mode.dragging {
-            opacity: 0.9;
-            background: rgba(255,220,0,0.25);
-        }
-        .btn:not(.drag-mode):active {
+        .btn:active {
             opacity: 1.0;
             background: rgba(255,255,255,0.35);
         }
@@ -93,19 +78,18 @@
     </div>
 
     <div id="dpad">
-        <div class="btn" id="btn-up"    data-key="setUp">▲</div>
-        <div class="btn" id="btn-down"  data-key="setDown">▼</div>
-        <div class="btn" id="btn-left"  data-key="setLeft">◀</div>
-        <div class="btn" id="btn-right" data-key="setRight">▶</div>
+        <div class="btn" id="btn-up"    data-key="setUp">&#9650;</div>
+        <div class="btn" id="btn-down"  data-key="setDown">&#9660;</div>
+        <div class="btn" id="btn-left"  data-key="setLeft">&#9664;</div>
+        <div class="btn" id="btn-right" data-key="setRight">&#9654;</div>
         <div class="btn" id="btn-space" data-key="setSpace" style="width:80px;">SPC</div>
         <div class="btn" id="btn-z"     data-key="setZ">Z</div>
         <div class="btn" id="btn-r"     data-key="setR">R</div>
         <div class="btn" id="btn-enter" data-key="setEnter" style="width:70px;">ETR</div>
     </div>
 
-   
-
     <script>
+
         // ── Ruffle config ─────────────────────────────────────────────────
         window.RufflePlayer = window.RufflePlayer || {};
         window.RufflePlayer.config = {
@@ -119,12 +103,11 @@
             allowFullscreen: false
         };
 
-        var player;
-        var draggable = false;  // true during the 15s window
-        var dragTimer  = null;
+        var player     = null;
+        var draggable  = false;
         var cdInterval = null;
 
-        // ── Default positions (fallback if no saved data) ─────────────────
+        // ── Default positions ─────────────────────────────────────────────
         var defaults = {
             "btn-up":    { x: 60,  y: 220 },
             "btn-down":  { x: 60,  y: 320 },
@@ -136,24 +119,23 @@
             "btn-enter": { x: 680, y: 200 }
         };
 
-        // ── Save / load positions from localStorage ───────────────────────
         var STORAGE_KEY = "bfdia5b_btn_positions";
 
+        // ── Save positions to localStorage ────────────────────────────────
         function savePositions() {
             var data = {};
             var btns = document.querySelectorAll(".btn");
             for (var i = 0; i < btns.length; i++) {
                 var b = btns[i];
                 data[b.id] = {
-                    x: parseInt(b.style.left)  || 0,
-                    y: parseInt(b.style.top)   || 0
+                    x: parseInt(b.style.left) || 0,
+                    y: parseInt(b.style.top)  || 0
                 };
             }
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-            } catch(e) {}
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
         }
 
+        // ── Load positions from localStorage ──────────────────────────────
         function loadPositions() {
             var data = null;
             try {
@@ -172,55 +154,24 @@
             }
         }
 
-        // ── AS2 bridge ────────────────────────────────────────────────────
-        window.showDpad = function() {
-            loadPositions();
-            document.getElementById("dpad").style.display = "block";
-            startDragPhase();
-        };
-        window.hideDpad = function() {
-            document.getElementById("dpad").style.display = "none";
-            endDragPhase();
-        };
-
-       function callAS(fn, val) {
-    if (!player) return;
-    try {
-        if (typeof player.callExternalInterface === "function") {
-            player.callExternalInterface(fn, val);
-            return;
-        }
-        if (player.ruffle && typeof player.ruffle().callExternalInterface === "function") {
-            player.ruffle().callExternalInterface(fn, val);
-            return;
-        }
-    } catch(e) {
-        console.warn("callAS failed:", fn, val, e);
-    }
-}
-
-        // ── Drag phase: 15 seconds after dpad appears ─────────────────────
+        // ── Start 15s drag phase ──────────────────────────────────────────
         function startDragPhase() {
             draggable = true;
             var remaining = 15;
-           
-            // Add yellow border class to all buttons
             var btns = document.querySelectorAll(".btn");
             for (var i = 0; i < btns.length; i++) {
                 btns[i].classList.add("drag-mode");
             }
-
             cdInterval = setInterval(function() {
                 remaining--;
-                cdEl.textContent = remaining;
                 if (remaining <= 0) endDragPhase();
             }, 1000);
         }
 
+        // ── End drag phase ────────────────────────────────────────────────
         function endDragPhase() {
             draggable = false;
             if (cdInterval) { clearInterval(cdInterval); cdInterval = null; }
-            document.getElementById("drag-notice").style.display = "none";
             var btns = document.querySelectorAll(".btn");
             for (var i = 0; i < btns.length; i++) {
                 btns[i].classList.remove("drag-mode");
@@ -228,96 +179,109 @@
             savePositions();
         }
 
-        // ── Touch handling ────────────────────────────────────────────────
-        // Each touch is tracked separately so multitouch works correctly.
-        // During drag phase  → move button
-        // After drag phase   → send AS2 key down/up
+        // ── Call AS2 function via ExternalInterface ───────────────────────
+        function callAS(fn, val) {
+            if (!player) return;
+            try {
+                if (typeof player.callExternalInterface === "function") {
+                    player.callExternalInterface(fn, val);
+                    return;
+                }
+                if (player.ruffle && typeof player.ruffle().callExternalInterface === "function") {
+                    player.ruffle().callExternalInterface(fn, val);
+                    return;
+                }
+            } catch(e) {
+                console.warn("callAS failed:", fn, val, e);
+            }
+        }
 
-        // touchId -> { type: "drag"|"key", btnEl, setter, startX, startY, origLeft, origTop }
+        // ── Touch registry — tracks every finger independently ────────────
         var touchRegistry = {};
 
+        // ── Bind touch events to all buttons ─────────────────────────────
         function bindButtons() {
             var btns = document.querySelectorAll(".btn");
             for (var i = 0; i < btns.length; i++) {
                 (function(btn) {
                     var setter = btn.getAttribute("data-key");
 
-btn.addEventListener("touchstart", function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    for (var t = 0; t < e.changedTouches.length; t++) {
-        var touch = e.changedTouches[t];
-        touchRegistry[touch.identifier] = {
-            btnEl:    btn,
-            setter:   setter,
-            startX:   touch.clientX,
-            startY:   touch.clientY,
-            origLeft: parseInt(btn.style.left) || 0,
-            origTop:  parseInt(btn.style.top)  || 0,
-            isDrag:   false  // determined on move
-        };
-        // Always fire key down immediately on touch
-        callAS(setter, true);
-    }
-}, {passive: false});
+                    btn.addEventListener("touchstart", function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        for (var t = 0; t < e.changedTouches.length; t++) {
+                            var touch = e.changedTouches[t];
+                            touchRegistry[touch.identifier] = {
+                                btnEl:    btn,
+                                setter:   setter,
+                                startX:   touch.clientX,
+                                startY:   touch.clientY,
+                                origLeft: parseInt(btn.style.left) || 0,
+                                origTop:  parseInt(btn.style.top)  || 0,
+                                isDrag:   false
+                            };
+                            // Always fire key immediately on touch
+                            callAS(setter, true);
+                        }
+                    }, {passive: false});
 
-btn.addEventListener("touchmove", function(e) {
-    e.preventDefault();
-    for (var t = 0; t < e.changedTouches.length; t++) {
-        var touch = e.changedTouches[t];
-        var reg   = touchRegistry[touch.identifier];
-        if (!reg) continue;
+                    btn.addEventListener("touchmove", function(e) {
+                        e.preventDefault();
+                        for (var t = 0; t < e.changedTouches.length; t++) {
+                            var touch = e.changedTouches[t];
+                            var reg   = touchRegistry[touch.identifier];
+                            if (!reg) continue;
+                            var dx   = touch.clientX - reg.startX;
+                            var dy   = touch.clientY - reg.startY;
+                            var dist = Math.sqrt(dx * dx + dy * dy);
+                            // Only drag if in drag phase AND moved more than 10px
+                            if (draggable && dist > 10) {
+                                if (!reg.isDrag) {
+                                    reg.isDrag = true;
+                                    // Cancel the key press since this is a drag
+                                    callAS(reg.setter, false);
+                                }
+                                var newLeft = reg.origLeft + dx;
+                                var newTop  = reg.origTop  + dy;
+                                var bw = reg.btnEl.offsetWidth;
+                                var bh = reg.btnEl.offsetHeight;
+                                newLeft = Math.max(0, Math.min(window.innerWidth  - bw, newLeft));
+                                newTop  = Math.max(0, Math.min(window.innerHeight - bh, newTop));
+                                reg.btnEl.style.left = newLeft + "px";
+                                reg.btnEl.style.top  = newTop  + "px";
+                            }
+                        }
+                    }, {passive: false});
 
-        var dx = touch.clientX - reg.startX;
-        var dy = touch.clientY - reg.startY;
-        var dist = Math.sqrt(dx*dx + dy*dy);
+                    btn.addEventListener("touchend", function(e) {
+                        e.preventDefault();
+                        for (var t = 0; t < e.changedTouches.length; t++) {
+                            var touch = e.changedTouches[t];
+                            var reg   = touchRegistry[touch.identifier];
+                            if (!reg) continue;
+                            if (!reg.isDrag) {
+                                callAS(reg.setter, false);
+                            }
+                            delete touchRegistry[touch.identifier];
+                        }
+                    }, {passive: false});
 
-        // Only drag if in drag phase AND moved more than 10px
-        if (draggable && dist > 10) {
-            reg.isDrag = true;
-            // If we started sending key down, cancel it
-            callAS(reg.setter, false);
+                    btn.addEventListener("touchcancel", function(e) {
+                        e.preventDefault();
+                        for (var t = 0; t < e.changedTouches.length; t++) {
+                            var touch = e.changedTouches[t];
+                            var reg   = touchRegistry[touch.identifier];
+                            if (!reg) continue;
+                            callAS(reg.setter, false);
+                            delete touchRegistry[touch.identifier];
+                        }
+                    }, {passive: false});
 
-            var newLeft = reg.origLeft + dx;
-            var newTop  = reg.origTop  + dy;
-            var bw = reg.btnEl.offsetWidth;
-            var bh = reg.btnEl.offsetHeight;
-            newLeft = Math.max(0, Math.min(window.innerWidth  - bw, newLeft));
-            newTop  = Math.max(0, Math.min(window.innerHeight - bh, newTop));
-            reg.btnEl.style.left = newLeft + "px";
-            reg.btnEl.style.top  = newTop  + "px";
+                })(btns[i]);
+            }
         }
-    }
-}, {passive: false});
 
-btn.addEventListener("touchend", function(e) {
-    e.preventDefault();
-    for (var t = 0; t < e.changedTouches.length; t++) {
-        var touch = e.changedTouches[t];
-        var reg   = touchRegistry[touch.identifier];
-        if (!reg) continue;
-        if (!reg.isDrag) {
-            // Normal tap — release key
-            callAS(reg.setter, false);
-        }
-        btn.classList.remove("dragging");
-        delete touchRegistry[touch.identifier];
-    }
-}, {passive: false});
-
-btn.addEventListener("touchcancel", function(e) {
-    e.preventDefault();
-    for (var t = 0; t < e.changedTouches.length; t++) {
-        var touch = e.changedTouches[t];
-        var reg   = touchRegistry[touch.identifier];
-        if (!reg) continue;
-        callAS(reg.setter, false);
-        btn.classList.remove("dragging");
-        delete touchRegistry[touch.identifier];
-    }
-}, {passive: false});
-
-        // ── Load Ruffle ───────────────────────────────────────────────────
+        // ── Init Ruffle and load game ─────────────────────────────────────
         function initRuffle() {
             var ruffle  = window.RufflePlayer.newest();
             player      = ruffle.createPlayer();
@@ -325,22 +289,24 @@ btn.addEventListener("touchcancel", function(e) {
             var status  = document.getElementById("status");
             if (status) wrapper.removeChild(status);
             wrapper.appendChild(player);
-          player.load("5mobile.swf").catch(function(e) {
-    wrapper.innerHTML =
-        "<p style='color:#fff;padding:20px;text-align:center'>" +
-        "Failed to load game.<br>" + e + "</p>";
-});
-bindButtons();
 
-// Show dpad automatically after game loads
-// Small delay to let Ruffle fully initialize
-setTimeout(function() {
-    loadPositions();
-    document.getElementById("dpad").style.display = "block";
-    startDragPhase();
-}, 3000);
+            player.load("5mobile.swf").catch(function(e) {
+                wrapper.innerHTML =
+                    "<p style='color:#fff;padding:20px;text-align:center'>" +
+                    "Failed to load game.<br>" + e + "</p>";
+            });
+
+            bindButtons();
+
+            // Show dpad 5 seconds after Ruffle loads
+            setTimeout(function() {
+                loadPositions();
+                document.getElementById("dpad").style.display = "block";
+                startDragPhase();
+            }, 5000);
         }
 
+        // ── Fallback to CDN if local ruffle.js missing ────────────────────
         function tryFallback() {
             var s = document.createElement("script");
             s.src = "https://unpkg.com/@ruffle-rs/ruffle";
@@ -358,6 +324,7 @@ setTimeout(function() {
         localScript.onload = function() { setTimeout(initRuffle, 300); };
         localScript.onerror = tryFallback;
         document.head.appendChild(localScript);
+
     </script>
 
 </body>
