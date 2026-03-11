@@ -96,24 +96,21 @@
         </div>
     </div>
 
-    <!-- Update button shown during 10s startup delay -->
     <div id="update-btn" onclick="doUpdate()">Update Game</div>
 
-    <!-- Dpad overlay -->
     <div id="dpad">
-        <div class="btn" id="btn-up"    data-key="setUp">&#9650;</div>
-        <div class="btn" id="btn-down"  data-key="setDown">&#9660;</div>
-        <div class="btn" id="btn-left"  data-key="setLeft">&#9664;</div>
-        <div class="btn" id="btn-right" data-key="setRight">&#9654;</div>
-        <div class="btn" id="btn-space" data-key="setSpace" style="width:80px;">SPC</div>
-        <div class="btn" id="btn-z"     data-key="setZ">Z</div>
-        <div class="btn" id="btn-r"     data-key="setR">R</div>
-        <div class="btn" id="btn-enter" data-key="setEnter" style="width:70px;">ETR</div>
+        <div class="btn" id="btn-up"    data-btn="up">&#9650;</div>
+        <div class="btn" id="btn-down"  data-btn="down">&#9660;</div>
+        <div class="btn" id="btn-left"  data-btn="left">&#9664;</div>
+        <div class="btn" id="btn-right" data-btn="right">&#9654;</div>
+        <div class="btn" id="btn-space" data-btn="space" style="width:80px;">SPC</div>
+        <div class="btn" id="btn-z"     data-btn="z">Z</div>
+        <div class="btn" id="btn-r"     data-btn="r">R</div>
+        <div class="btn" id="btn-enter" data-btn="enter" style="width:70px;">ETR</div>
     </div>
 
     <script>
 
-        // ── Ruffle config ─────────────────────────────────────────────────
         window.RufflePlayer = window.RufflePlayer || {};
         window.RufflePlayer.config = {
             base: "./",
@@ -130,7 +127,17 @@
         var draggable  = false;
         var cdInterval = null;
 
-        // ── Default button positions ──────────────────────────────────────
+        // Same host:port that served this page
+        var SERVER = window.location.protocol + "//" + window.location.host;
+
+        // Send button state to local server via XHR
+        function sendBtn(name, val) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", SERVER + "/btn?n=" + name + "&v=" + (val ? "1" : "0"), true);
+            xhr.send();
+        }
+
+        // Default positions
         var defaults = {
             "btn-up":    { x: 60,  y: 220 },
             "btn-down":  { x: 60,  y: 320 },
@@ -144,7 +151,6 @@
 
         var STORAGE_KEY = "bfdia5b_btn_positions";
 
-        // ── Save positions ────────────────────────────────────────────────
         function savePositions() {
             var data = {};
             var btns = document.querySelectorAll(".btn");
@@ -158,7 +164,6 @@
             try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
         }
 
-        // ── Load positions ────────────────────────────────────────────────
         function loadPositions() {
             var data = null;
             try {
@@ -176,14 +181,11 @@
             }
         }
 
-        // ── Drag phase ────────────────────────────────────────────────────
         function startDragPhase() {
             draggable = true;
             var remaining = 15;
             var btns = document.querySelectorAll(".btn");
-            for (var i = 0; i < btns.length; i++) {
-                btns[i].classList.add("drag-mode");
-            }
+            for (var i = 0; i < btns.length; i++) btns[i].classList.add("drag-mode");
             cdInterval = setInterval(function() {
                 remaining--;
                 if (remaining <= 0) endDragPhase();
@@ -194,26 +196,10 @@
             draggable = false;
             if (cdInterval) { clearInterval(cdInterval); cdInterval = null; }
             var btns = document.querySelectorAll(".btn");
-            for (var i = 0; i < btns.length; i++) {
-                btns[i].classList.remove("drag-mode");
-            }
+            for (var i = 0; i < btns.length; i++) btns[i].classList.remove("drag-mode");
             savePositions();
         }
 
-        // ── Call AS2 via ExternalInterface ────────────────────────────────
-        function callAS(fn, val) {
-            if (!player) return;
-            try {
-                if (typeof player.callExternalInterface === "function") {
-                    player.callExternalInterface(fn, val);
-                    return;
-                }
-            } catch(e) {
-                console.warn("callAS failed:", fn, val, e);
-            }
-        }
-
-        // ── Update button ─────────────────────────────────────────────────
         function doUpdate() {
             var btn = document.getElementById("update-btn");
             btn.textContent = "Downloading...";
@@ -224,19 +210,16 @@
             } catch(e) {
                 btn.textContent = "Failed!";
                 btn.style.background = "#ff6666";
-                console.warn("Android bridge not available:", e);
             }
         }
 
-        // ── Touch registry ────────────────────────────────────────────────
         var touchRegistry = {};
 
-        // ── Bind buttons ──────────────────────────────────────────────────
         function bindButtons() {
             var btns = document.querySelectorAll(".btn");
             for (var i = 0; i < btns.length; i++) {
                 (function(btn) {
-                    var setter = btn.getAttribute("data-key");
+                    var btnName = btn.getAttribute("data-btn");
 
                     btn.addEventListener("touchstart", function(e) {
                         e.preventDefault();
@@ -245,14 +228,14 @@
                             var touch = e.changedTouches[t];
                             touchRegistry[touch.identifier] = {
                                 btnEl:    btn,
-                                setter:   setter,
+                                btnName:  btnName,
                                 startX:   touch.clientX,
                                 startY:   touch.clientY,
                                 origLeft: parseInt(btn.style.left) || 0,
                                 origTop:  parseInt(btn.style.top)  || 0,
                                 isDrag:   false
                             };
-                            callAS(setter, true);
+                            sendBtn(btnName, true);
                         }
                     }, {passive: false});
 
@@ -268,7 +251,7 @@
                             if (draggable && dist > 10) {
                                 if (!reg.isDrag) {
                                     reg.isDrag = true;
-                                    callAS(reg.setter, false);
+                                    sendBtn(reg.btnName, false);
                                 }
                                 var newLeft = reg.origLeft + dx;
                                 var newTop  = reg.origTop  + dy;
@@ -288,9 +271,7 @@
                             var touch = e.changedTouches[t];
                             var reg   = touchRegistry[touch.identifier];
                             if (!reg) continue;
-                            if (!reg.isDrag) {
-                                callAS(reg.setter, false);
-                            }
+                            if (!reg.isDrag) sendBtn(reg.btnName, false);
                             delete touchRegistry[touch.identifier];
                         }
                     }, {passive: false});
@@ -301,7 +282,7 @@
                             var touch = e.changedTouches[t];
                             var reg   = touchRegistry[touch.identifier];
                             if (!reg) continue;
-                            callAS(reg.setter, false);
+                            sendBtn(reg.btnName, false);
                             delete touchRegistry[touch.identifier];
                         }
                     }, {passive: false});
@@ -310,7 +291,6 @@
             }
         }
 
-        // ── Init Ruffle ───────────────────────────────────────────────────
         function initRuffle() {
             var ruffle  = window.RufflePlayer.newest();
             player      = ruffle.createPlayer();
@@ -319,7 +299,11 @@
             if (status) wrapper.removeChild(status);
             wrapper.appendChild(player);
 
-            player.load("5mobile.swf").catch(function(e) {
+            // Pass server port to AS2 as a flashvar so it knows where to poll
+            player.load({
+                url: "5mobile.swf",
+                parameters: { serverPort: window.location.port }
+            }).catch(function(e) {
                 wrapper.innerHTML =
                     "<p style='color:#fff;padding:20px;text-align:center'>" +
                     "Failed to load game.<br>" + e + "</p>";
@@ -327,7 +311,6 @@
 
             bindButtons();
 
-            // Wait 10 seconds before starting Ruffle dpad and hiding update btn
             setTimeout(function() {
                 var updateBtn = document.getElementById("update-btn");
                 if (updateBtn) updateBtn.style.display = "none";
@@ -337,7 +320,6 @@
             }, 10000);
         }
 
-        // ── Load Ruffle — local first, CDN fallback ───────────────────────
         function tryFallback() {
             var s = document.createElement("script");
             s.src = "https://unpkg.com/@ruffle-rs/ruffle";
@@ -357,6 +339,5 @@
         document.head.appendChild(localScript);
 
     </script>
-
 </body>
 </html>
